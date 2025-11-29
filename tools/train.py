@@ -22,7 +22,7 @@ import models
 import datasets
 from configs import config
 from configs import update_config
-from utils.criterion import CrossEntropy, OhemCrossEntropy, BondaryLoss
+from utils.criterion import CrossEntropy, OhemCrossEntropy, BoundaryLoss
 from utils.function import train, validate
 from utils.utils import create_logger, FullModel
 
@@ -130,7 +130,7 @@ def main():
         sem_criterion = CrossEntropy(ignore_label=config.TRAIN.IGNORE_LABEL,
                                     weight=train_dataset.class_weights)
 
-    bd_criterion = BondaryLoss()
+    bd_criterion = BoundaryLoss()
     
     model = FullModel(model, sem_criterion, bd_criterion)
     model = nn.DataParallel(model, device_ids=gpus).cuda()
