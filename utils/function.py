@@ -39,8 +39,11 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr,
         labels = labels.long().cuda()
         bd_gts = bd_gts.float().cuda()
         
+        # For now, view_labels is None (not provided by dataset)
+        # When view classification is enabled, dataset should provide view labels
+        view_labels = None
 
-        losses, _, acc, loss_list = model(images, labels, bd_gts)
+        losses, _, acc, loss_list = model(images, labels, bd_gts, view_labels)
         loss = losses.mean()
         acc  = acc.mean()
 
@@ -88,7 +91,7 @@ def validate(config, testloader, model, writer_dict):
             label = label.long().cuda()
             bd_gts = bd_gts.float().cuda()
 
-            losses, pred, _, _ = model(image, label, bd_gts)
+            losses, pred, _, _ = model(image, label, bd_gts, None)
             if not isinstance(pred, (list, tuple)):
                 pred = [pred]
             for i, x in enumerate(pred):

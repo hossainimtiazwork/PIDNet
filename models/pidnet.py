@@ -16,9 +16,10 @@ algc = False
 
 class PIDNet(nn.Module):
 
-    def __init__(self, m=2, n=3, num_classes=19, planes=64, ppm_planes=96, head_planes=128, augment=True):
+    def __init__(self, m=2, n=3, num_classes=19, planes=64, ppm_planes=96, head_planes=128, augment=True, num_view_classes=0):
         super(PIDNet, self).__init__()
         self.augment = augment
+        self.num_view_classes = num_view_classes
         
         # I Branch
         self.conv1 =  nn.Sequential(
@@ -90,6 +91,19 @@ class PIDNet(nn.Module):
             self.seghead_d = segmenthead(planes * 2, planes, 1)           
 
         self.final_layer = segmenthead(planes * 4, head_planes, num_classes)
+        
+        # View Classifier Head (auxiliary head on I branch)
+        if self.num_view_classes > 0:
+            # Use features from I branch after layer5 for global view classification
+            self.view_classifier = nn.Sequential(
+                nn.AdaptiveAvgPool2d((1, 1)),
+                nn.Flatten(),
+                nn.Linear(planes * 8 * 2, planes * 4),  # planes * 8 (layer5 channels) * 2 (bottleneck expansion)
+                nn.BatchNorm1d(planes * 4),
+                nn.ReLU(inplace=True),
+                nn.Dropout(0.5),
+                nn.Linear(planes * 4, num_view_classes)
+            )
 
 
         for m in self.modules():
@@ -167,8 +181,9 @@ class PIDNet(nn.Module):
             
         x_ = self.layer5_(self.relu(x_))
         x_d = self.layer5_d(self.relu(x_d))
+        x_i = self.layer5(x)  # Save I branch features for view classifier
         x = F.interpolate(
-                        self.spp(self.layer5(x)),
+                        self.spp(x_i),
                         size=[height_output, width_output],
                         mode='bilinear', align_corners=algc)
 
@@ -177,18 +192,29 @@ class PIDNet(nn.Module):
         if self.augment: 
             x_extra_p = self.seghead_p(temp_p)
             x_extra_d = self.seghead_d(temp_d)
-            return [x_extra_p, x_, x_extra_d]
+            # Add view classifier output if enabled
+            if self.num_view_classes > 0:
+                x_view = self.view_classifier(x_i)
+                return [x_extra_p, x_, x_extra_d, x_view]
+            else:
+                return [x_extra_p, x_, x_extra_d]
         else:
-            return x_      
+            if self.num_view_classes > 0:
+                x_view = self.view_classifier(x_i)
+                return x_, x_view
+            else:
+                return x_      
 
 def get_seg_model(cfg, imgnet_pretrained):
     
+    num_view_classes = getattr(cfg.MODEL, 'NUM_VIEW_CLASSES', 0)
+    
     if 's' in cfg.MODEL.NAME:
-        model = PIDNet(m=2, n=3, num_classes=cfg.DATASET.NUM_CLASSES, planes=32, ppm_planes=96, head_planes=128, augment=True)
+        model = PIDNet(m=2, n=3, num_classes=cfg.DATASET.NUM_CLASSES, planes=32, ppm_planes=96, head_planes=128, augment=True, num_view_classes=num_view_classes)
     elif 'm' in cfg.MODEL.NAME:
-        model = PIDNet(m=2, n=3, num_classes=cfg.DATASET.NUM_CLASSES, planes=64, ppm_planes=96, head_planes=128, augment=True)
+        model = PIDNet(m=2, n=3, num_classes=cfg.DATASET.NUM_CLASSES, planes=64, ppm_planes=96, head_planes=128, augment=True, num_view_classes=num_view_classes)
     else:
-        model = PIDNet(m=3, n=4, num_classes=cfg.DATASET.NUM_CLASSES, planes=64, ppm_planes=112, head_planes=256, augment=True)
+        model = PIDNet(m=3, n=4, num_classes=cfg.DATASET.NUM_CLASSES, planes=64, ppm_planes=112, head_planes=256, augment=True, num_view_classes=num_view_classes)
     
     if imgnet_pretrained:
         pretrained_state = torch.load(cfg.MODEL.PRETRAINED, map_location='cpu')['state_dict'] 
@@ -215,14 +241,14 @@ def get_seg_model(cfg, imgnet_pretrained):
     
     return model
 
-def get_pred_model(name, num_classes):
+def get_pred_model(name, num_classes, num_view_classes=0):
     
     if 's' in name:
-        model = PIDNet(m=2, n=3, num_classes=num_classes, planes=32, ppm_planes=96, head_planes=128, augment=False)
+        model = PIDNet(m=2, n=3, num_classes=num_classes, planes=32, ppm_planes=96, head_planes=128, augment=False, num_view_classes=num_view_classes)
     elif 'm' in name:
-        model = PIDNet(m=2, n=3, num_classes=num_classes, planes=64, ppm_planes=96, head_planes=128, augment=False)
+        model = PIDNet(m=2, n=3, num_classes=num_classes, planes=64, ppm_planes=96, head_planes=128, augment=False, num_view_classes=num_view_classes)
     else:
-        model = PIDNet(m=3, n=4, num_classes=num_classes, planes=64, ppm_planes=112, head_planes=256, augment=False)
+        model = PIDNet(m=3, n=4, num_classes=num_classes, planes=64, ppm_planes=112, head_planes=256, augment=False, num_view_classes=num_view_classes)
     
     return model
 
