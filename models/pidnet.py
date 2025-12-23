@@ -98,7 +98,7 @@ class PIDNet(nn.Module):
             self.view_classifier = nn.Sequential(
                 nn.AdaptiveAvgPool2d((1, 1)),
                 nn.Flatten(),
-                nn.Linear(planes * 8 * 2, planes * 4),  # Bottleneck expansion = 2
+                nn.Linear(planes * 8 * 2, planes * 4),  # planes * 8 (layer5 channels) * 2 (bottleneck expansion)
                 nn.BatchNorm1d(planes * 4),
                 nn.ReLU(inplace=True),
                 nn.Dropout(0.5),

@@ -26,7 +26,7 @@ class FullModel(nn.Module):
     self.sem_loss = sem_loss
     self.bd_loss = bd_loss
     self.view_loss = view_loss
-    self.has_view_classifier = hasattr(model, 'num_view_classes') and model.num_view_classes > 0
+    self.has_view_classifier = model.num_view_classes > 0
 
   def pixel_acc(self, pred, label):
     _, preds = torch.max(pred, dim=1)
