@@ -22,7 +22,7 @@ import models
 import datasets
 from configs import config
 from configs import update_config
-from utils.criterion import CrossEntropy, OhemCrossEntropy, BondaryLoss
+from utils.criterion import CrossEntropy, OhemCrossEntropy, BondaryLoss, ViewClassificationLoss
 from utils.function import train, validate
 from utils.utils import create_logger, FullModel
 
@@ -132,7 +132,14 @@ def main():
 
     bd_criterion = BondaryLoss()
     
-    model = FullModel(model, sem_criterion, bd_criterion)
+    # View classification criterion
+    num_view_classes = getattr(config.MODEL, 'NUM_VIEW_CLASSES', 0)
+    if num_view_classes > 0:
+        view_criterion = ViewClassificationLoss()
+        model = FullModel(model, sem_criterion, bd_criterion, view_criterion)
+    else:
+        model = FullModel(model, sem_criterion, bd_criterion)
+    
     model = nn.DataParallel(model, device_ids=gpus).cuda()
 
     # optimizer

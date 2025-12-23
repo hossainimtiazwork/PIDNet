@@ -20,11 +20,13 @@ from configs import config
 
 class FullModel(nn.Module):
 
-  def __init__(self, model, sem_loss, bd_loss):
+  def __init__(self, model, sem_loss, bd_loss, view_loss=None):
     super(FullModel, self).__init__()
     self.model = model
     self.sem_loss = sem_loss
     self.bd_loss = bd_loss
+    self.view_loss = view_loss
+    self.has_view_classifier = hasattr(model, 'num_view_classes') and model.num_view_classes > 0
 
   def pixel_acc(self, pred, label):
     _, preds = torch.max(pred, dim=1)
@@ -34,27 +36,44 @@ class FullModel(nn.Module):
     acc = acc_sum.float() / (pixel_sum.float() + 1e-10)
     return acc
 
-  def forward(self, inputs, labels, bd_gt, *args, **kwargs):
+  def forward(self, inputs, labels, bd_gt, view_labels=None, *args, **kwargs):
     
     outputs = self.model(inputs, *args, **kwargs)
     
+    # Handle different output formats
+    if self.has_view_classifier:
+        # outputs = [x_extra_p, x_, x_extra_d, x_view]
+        view_pred = outputs[-1]
+        seg_outputs = outputs[:-1]
+    else:
+        # outputs = [x_extra_p, x_, x_extra_d]
+        seg_outputs = outputs
+        view_pred = None
+    
     h, w = labels.size(1), labels.size(2)
-    ph, pw = outputs[0].size(2), outputs[0].size(3)
+    ph, pw = seg_outputs[0].size(2), seg_outputs[0].size(3)
     if ph != h or pw != w:
-        for i in range(len(outputs)):
-            outputs[i] = F.interpolate(outputs[i], size=(
+        for i in range(len(seg_outputs)):
+            seg_outputs[i] = F.interpolate(seg_outputs[i], size=(
                 h, w), mode='bilinear', align_corners=config.MODEL.ALIGN_CORNERS)
 
-    acc  = self.pixel_acc(outputs[-2], labels)
-    loss_s = self.sem_loss(outputs[:-1], labels)
-    loss_b = self.bd_loss(outputs[-1], bd_gt)
+    acc  = self.pixel_acc(seg_outputs[-2], labels)
+    loss_s = self.sem_loss(seg_outputs[:-1], labels)
+    loss_b = self.bd_loss(seg_outputs[-1], bd_gt)
 
     filler = torch.ones_like(labels) * config.TRAIN.IGNORE_LABEL
-    bd_label = torch.where(F.sigmoid(outputs[-1][:,0,:,:])>0.8, labels, filler)
-    loss_sb = self.sem_loss(outputs[-2], bd_label)
-    loss = loss_s + loss_b + loss_sb
-
-    return torch.unsqueeze(loss,0), outputs[:-1], acc, [loss_s, loss_b]
+    bd_label = torch.where(F.sigmoid(seg_outputs[-1][:,0,:,:])>0.8, labels, filler)
+    loss_sb = self.sem_loss(seg_outputs[-2], bd_label)
+    
+    # Add view classification loss if enabled
+    if self.has_view_classifier and view_pred is not None and view_labels is not None:
+        loss_view = self.view_loss(view_pred, view_labels)
+        view_weight = getattr(config.LOSS, 'VIEW_WEIGHT', 1.0)
+        loss = loss_s + loss_b + loss_sb + view_weight * loss_view
+        return torch.unsqueeze(loss,0), seg_outputs[:-1], acc, [loss_s, loss_b, loss_view]
+    else:
+        loss = loss_s + loss_b + loss_sb
+        return torch.unsqueeze(loss,0), seg_outputs[:-1], acc, [loss_s, loss_b]
 
 
 class AverageMeter(object):

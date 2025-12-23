@@ -130,6 +130,21 @@ class BondaryLoss(nn.Module):
         loss = bce_loss
         
         return loss
+
+
+class ViewClassificationLoss(nn.Module):
+    def __init__(self, weight=None):
+        super(ViewClassificationLoss, self).__init__()
+        self.criterion = nn.CrossEntropyLoss(weight=weight)
+        
+    def forward(self, view_pred, view_target):
+        """
+        Args:
+            view_pred: [batch_size, num_view_classes] - predicted logits
+            view_target: [batch_size] - ground truth view class labels
+        """
+        loss = self.criterion(view_pred, view_target)
+        return loss
     
 if __name__ == '__main__':
     a = torch.zeros(2,64,64)
