@@ -6,6 +6,22 @@
 
 This is the official repository for our recent work: PIDNet ([PDF](https://arxiv.org/pdf/2206.02066)）
 
+## 📚 New: Step-by-Step Tutorial
+
+**Want to learn PIDNet from scratch?** Check out our comprehensive tutorial: [**TUTORIAL.md**](TUTORIAL.md)
+
+The tutorial covers:
+- 🏗️ Understanding the PID-inspired architecture (P, I, D branches)
+- 🔧 Installation and environment setup
+- 📊 Dataset preparation (Cityscapes & CamVid)
+- 🎓 Training your first model
+- 📈 Evaluation and performance metrics
+- 🖼️ Running inference on custom images
+- 💡 Advanced topics: speed measurement, fine-tuning, deployment
+- 🐛 Troubleshooting common issues
+
+Perfect for beginners and practitioners who want to understand and use PIDNet effectively!
+
 ## Highlights
 <p align="center">
   <img src="figs/cityscapes_score.jpg" alt="overview-of-our-method" width="500"/></br>
